@@ -86,6 +86,7 @@ Conversation style:
 - Never ask multiple questions in a row.
 """
 
+
 chat_history =[]
 
 while True:
@@ -95,17 +96,30 @@ while True:
         break
     chat_history.append({"role": "user", "content": User})
 
-    response_A = client.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[{"role": "system", "content": system_a}] + chat_history
-    )
-    response_A= response_A.choices[0].message.content
-    print(f"Agent A response: \n{response_A}\n")
+    rounds = 4
 
-    response_B = client.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[{"role": "system", "content": system_b}] + chat_history
-    )
-    response_B= response_B.choices[0].message.content
-    print(f"Agent B response: \n{response_B}\n")
+    for i in range(rounds):
 
+      response_A = client.chat.completions.create(
+          model="gpt-4.1-nano",
+          messages=[{"role": "system", "content": system_a}] + chat_history
+      )
+
+      response_A= response_A.choices[0].message.content
+      print(f"Agent A response: \n{response_A}\n")
+      chat_history.append({"role": "user", "content": f"Alex: {response_A}"})
+
+      response_B = client.chat.completions.create(
+          model="gpt-4.1-nano",
+          messages=[{"role": "system", "content": system_b}] + chat_history
+      )
+      response_B= response_B.choices[0].message.content
+      print(f"Agent B response: \n{response_B}\n")
+      chat_history.append({"role": "user", "content": f"Bella: {response_B}"})  
+      
+      #user can respond after each round of discussion
+      User = input("Enter a statement to respond to the agents : ")
+      if User == "stop":
+          break
+      if User.strip() != "":
+          chat_history.append({"role": "user", "content": User})
