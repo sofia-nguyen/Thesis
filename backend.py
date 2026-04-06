@@ -102,15 +102,14 @@ def message():
         messages=[{"role": "system", "content": system_a}] + chat_history
     )
     response_A = agent_A.choices[0].message.content
-    chat_history.append({"role": "user", "content": f"[Alex]: {response_A}"})
-
+    chat_history.append({"role": "assistant", "sender": "alex", "content": response_A})
     
     agent_B = client.chat.completions.create(
         model="gpt-4.1-nano",
         messages=[{"role": "system", "content": system_b}] + chat_history
     )
     response_B = agent_B.choices[0].message.content
-    chat_history.append({"role": "user", "content": f"[Bella]: {response_B}"})
+    chat_history.append({"role": "assistant", "sender": "bella", "content": response_B})
 
     return jsonify({"alex": response_A, "bella": response_B})
 
