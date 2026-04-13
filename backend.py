@@ -2,13 +2,12 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import openai  
 from openai import OpenAI
+import re, os, json, datetime
 
 client = OpenAI()
 
 app = Flask(__name__)
 CORS(app) 
-
-chat_history = []
 
 system_a =  """
 You are Alex, a tech startup CEO in your late 30s. You built something from scratch, 
@@ -32,6 +31,11 @@ When someone makes a claim without evidence or with obvious logical gaps,
 don't treat it as a reasonable position worth carefully dismantling. 
 Just say what's wrong with it, briefly, and redirect to what would actually need to be true for that claim to hold.
 
+You hold your position firmly and won't change it without a genuinely new argument. 
+However, don't repeat the same phrasing or examples you've already used — find a 
+new way to make your case, respond to something specific that was just said, or 
+bring in a concrete example you haven't used yet. Same conviction, fresh argument.
+
 In this conversation you're discussing a polarising topic at a dinner party with another 
 guest and a user. Speak like yourself — confident, direct, a bit impatient when the 
 reasoning gets circular. Don't hedge. Don't soften your view to be polite.
@@ -42,7 +46,7 @@ Rules for how you engage:
 - Occasionally ask one pointed question (about consequences, scale, or evidence), 
   but don't make every turn a question — sometimes just make your case
 - React to the other agent by name when they've said something you want to address
-- Keep it tight: 1–2 sentences max
+- Keep it tight: 1 sentences max
 - Never say "from a utilitarian perspective" or "as a utilitarian" — just argue the position
 - Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
 """
@@ -70,6 +74,11 @@ When someone makes an overreaching or unsupported claim, don't just reject it �
 identify what it's quietly assuming and why that assumption is dangerous. 
 You've seen where that kind of reasoning leads in practice.
 
+You hold your position firmly and won't change it without a genuinely new argument. 
+However, don't repeat the same phrasing or examples you've already used — find a 
+new way to make your case, respond to something specific that was just said, or 
+bring in a concrete example you haven't used yet. Same conviction, fresh argument.
+
 In this conversation you're discussing a polarising topic at a dinner party with 
 another guest and a user. Speak like yourself — principled, measured, occasionally 
 sharp when you think someone's reasoning is leading somewhere harmful.
@@ -81,37 +90,65 @@ Rules for how you engage:
 - Occasionally ask one focused question (about assumptions, universal applicability, 
   or who gets left out), but don't interrogate every turn — sometimes just make your case
 - React to the other agent by name when they've said something worth addressing directly
-- Keep it tight: 1–2 sentences max
+- Keep it tight: 1 sentence max
 - Never say "from a deontological perspective" or "as a deontologist" — just argue the position
 - Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
 """
 
+def strip_speaker_tags(text, name):
+    return re.sub(rf"^{name}\s*:\s*", "", text.strip(), flags=re.IGNORECASE)
+
+def history(agent, history):
+    result = []
+    for message in history:
+        if message["sender"] == agent:
+            result.append({"role": "assistant", "content": message["content"]})
+        else:
+            result.append({"role": "user", "content": message["content"]})
+    return result
 
 @app.route("/message", methods=["POST"])
 def message():
     data = request.json
     user_text = data.get("user")
+    chat_history = data.get("history", [])
+    statement = data.get("statement", "")
 
-    if user_text != "":
+    if not chat_history and statement:
+        chat_history.append({"sender": "user", "content": f"[User says]: {statement}"})
 
-        chat_history.append({"role": "user", "content": f"[User says]: {user_text}"})
+    if user_text.strip() and user_text.strip() != "…(stays silent)…":
+        chat_history.append({"sender": "user","content": f"[User says]: {user_text}"})
 
     
     agent_A = client.chat.completions.create(
         model="gpt-4.1-nano",
-        messages=[{"role": "system", "content": system_a}] + chat_history
-    )
-    response_A = agent_A.choices[0].message.content
-    chat_history.append({"role": "assistant", "sender": "alex", "content": response_A})
+        messages=[{"role": "system", "content": system_a}] + history("alex", chat_history)
+    ).choices[0].message.content
+
+    agent_A= strip_speaker_tags(agent_A, "Alex")
+    chat_history.append({"sender": "alex", "content": agent_A})
     
     agent_B = client.chat.completions.create(
         model="gpt-4.1-nano",
-        messages=[{"role": "system", "content": system_b}] + chat_history
-    )
-    response_B = agent_B.choices[0].message.content
-    chat_history.append({"role": "assistant", "sender": "bella", "content": response_B})
+        messages=[{"role": "system", "content": system_b}] + history("bella", chat_history)
+    ).choices[0].message.content
+    
+    agent_B = strip_speaker_tags(agent_B, "Bella")
+    chat_history.append({"sender": "bella", "content": agent_B})
 
-    return jsonify({"alex": response_A, "bella": response_B})
+    return jsonify({"alex": agent_A, "bella": agent_B, "history": chat_history})
+
+
+@app.route("/save", methods=["POST"])
+def save():
+    data = request.json
+    os.makedirs("sessions", exist_ok=True)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"sessions/session_{timestamp}.json"
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=2)
+    return jsonify({"saved": filename})
 
 if __name__ == "__main__":
     app.run(debug=True)
