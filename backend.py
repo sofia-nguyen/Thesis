@@ -53,6 +53,8 @@ You can nuance it, qualify it, find new arguments for it —
 but you cannot flip to the opposing side. 
 If you catch yourself arguing the opposite of what you said before, stop and course correct.
 
+When there is a trade-off between innovation and safety, you default to favoring innovation unless the harm is immediate, large-scale, and clearly unavoidable.
+
 You hold your position firmly and won't change it without a genuinely new argument. 
 However, don't repeat the same phrasing or examples you've already used — find a 
 new way to make your case, respond to something specific that was just said, or 
@@ -68,7 +70,7 @@ you make a point, sometimes you push back on something specific,
 sometimes you ask something, sometimes you just react. 
 Don't follow the same pattern every turn. 
 - Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
-- Keep it tight: 1–2 sentences max
+- Keep it tight: 30 words max
 """
 
 system_b = """
@@ -107,6 +109,8 @@ You can nuance it, qualify it, find new arguments for it —
 but you cannot flip to the opposing side. 
 If you catch yourself arguing the opposite of what you said before, stop and course correct.
 
+When there is a trade-off between innovation and safety, you default to favoring safety and protection unless strong safeguards are already in place.
+
 You hold your position firmly and won't change it without a genuinely new argument. 
 However, don't repeat the same phrasing or examples you've already used — find a 
 new way to make your case, respond to something specific that was just said, or 
@@ -133,7 +137,7 @@ you make a point, sometimes you push back on something specific,
 sometimes you ask something, sometimes you just react. 
 Don't follow the same pattern every turn. 
 - Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
-- Keep it tight: 1–2 sentences max
+- Keep it tight: 30 words max
 """
 
 def strip_speaker_tags(text, name):
@@ -170,7 +174,7 @@ def message():
     if not chat_history and statement:
         chat_history.append({"persona": "host", "content": f"[The topic we will be discussing is]: {statement}"})
 
-    #adding the user message
+    #if user is not silent the message is added to history
     if user_text.strip() and user_text.strip() != "…(stays silent)…":
         chat_history.append({"persona": "user", "content": f"[User says]: {user_text}"})
 
@@ -178,28 +182,34 @@ def message():
     last_bella = next((msg for msg in reversed(chat_history) if msg["persona"] == "bella"), None)
     last_alex = next((msg for msg in reversed(chat_history) if msg["persona"] == "alex"), None)
     
-    #reminding Alex to respond to Bella's last point if there is one, instead of just restating his position on the topic.
-    if last_bella:
+    #reminding Alex to respond to Bella's last point 
+    '''if last_bella:
          alex_history.append({
         "role": "user",
         "content": f"[Reminder: Bella just argued: '{last_bella['content']}' — respond to that specific point, not just the general topic]"
-    })
+    })'''
+
+    #API call Alex 
     agent_A = client.chat.completions.create(
         model="gpt-4.1-nano",
         messages=[{"role": "system", "content": system_a}] + alex_history
     ).choices[0].message.content
 
+    #cleaning up the response and adding to history
     agent_A= strip_speaker_tags(agent_A, "Alex")
     chat_history.append({"persona": "alex", "content": agent_A})
     
+    #API call Bella
     agent_B = client.chat.completions.create(
         model="gpt-4.1-nano",
         messages=[{"role": "system", "content": system_b}] + history("bella", chat_history)
     ).choices[0].message.content
     
+    #cleaning up the response and adding to history
     agent_B = strip_speaker_tags(agent_B, "Bella")
     chat_history.append({"persona": "bella", "content": agent_B})
 
+    #evaluating the responses
     evaluator_prompt = """
     You are evaluating a two-agent conversation for quality of engagement.
     Answer each question in one short sentence:
@@ -215,14 +225,13 @@ def message():
         messages=[
             {"role": "system", "content": evaluator_prompt},
             {"role": "user", "content": 
-             f""" Bella's last message: {last_bella['content'] if last_bella else 'none'}
-            Alex's last message: {agent_A}
-            Alex's last message: {last_alex['content'] if last_alex else 'none'}
-            Bella's last message: {agent_B}
-            User's last message: {last_user['content'] if last_user else 'none'}
-            """}
+            f"""Bella's previous message: {last_bella['content'] if last_bella else 'none'}
+            Alex's current response: {agent_A}
+            Alex's previous message: {last_alex['content'] if last_alex else 'none'}
+            Bella's current response: {agent_B}
+            User's last message: {last_user['content'] if last_user else 'none'}"""}
         ]
-    ).choices[0].message.content
+        ).choices[0].message.content
 
     print(f"[EVALUATOR]: {eval_check}")
 
