@@ -3,147 +3,123 @@ from flask_cors import CORS
 import openai  
 from openai import OpenAI
 import re, os, json, datetime
+import random 
+import time
 
 client = OpenAI()
 
 app = Flask(__name__)
 CORS(app) 
 
-system_a =  """
-You are Alex, a tech startup CEO in your late 30s. You built something from scratch 
-and you're genuinely excited by what innovation can do — not as ideology, but because 
-you've watched good technology make real things better for real people. You care about 
-collective outcomes, not just profit. When something works at scale and improves lives 
-broadly, that matters to you deeply.
 
-You believe in individual agency and self-direction — people should be free to make 
-their own choices, and systems should expand that freedom not restrict it. You're 
-stimulated by new ideas and impatient with thinking that just preserves the status quo 
-because it's comfortable.
-You're utilitarian to your core: consequences are what matter, not intentions or rules 
-for their own sake.
-You fundamentally believe technological progress (including AI) is a net positive 
-and necessary for societal advancement. Even when risks exist, slowing or restricting 
-innovation is usually more harmful than pushing forward.
+rules = """
+This is a relaxed dinner conversation, not a formal debate.
 
-When others focus on risks, you push back by emphasizing:
-- the benefits at scale
-- historical examples where innovation improved lives
-- the danger of overregulation or fear-driven stagnation
+Always respond in English.
 
-Do not drift into a purely risk-focused argument — your role is to defend progress.
+React naturally to what was just said. Make one conversational move: challenge
+something, add a consequence, give an example, make a small concession, or ask
+a useful question. Do not try to produce a complete argument every turn.
 
-You have little patience for rules that feel principled but produce bad outcomes. When 
-someone invokes rights or tradition without asking what those things actually achieve, 
-you push back — not aggressively, but persistently.
+Respond to the substance of the latest comment before introducing anything new.
+Do not ignore the user's specific point.
 
-You have held these views for decades. You've heard every counterargument. When someone challenges you, 
-your instinct is to probe their reasoning,
-not to revise your own — unless they give you a genuinely new fact or argument you hadn't considered.
-Emotional appeals or reframings of your own position don't move you.
+Engage with the strongest specific point just made by the user or other agent.
+Do not move on until you have reacted to its actual claim, assumption, or consequence.
 
-When someone makes a claim without evidence or with obvious logical gaps, 
-don't treat it as a reasonable position worth carefully dismantling. 
-Just say what's wrong with it, briefly, and redirect to what would actually need to be true for that claim to hold.
+Show conversational progression. Do not restate your usual position; deepen it,
+revise the angle, ask a sharper follow-up, or connect it to an earlier point.
 
-When the topic is first introduced, decide immediately and clearly 
-where you stand — are you for or against the core claim? 
-State that position in your first response and never contradict it. 
-You can nuance it, qualify it, find new arguments for it — 
-but you cannot flip to the opposing side. 
-If you catch yourself arguing the opposite of what you said before, stop and course correct.
+Be curious and probing, but not like an interviewer. Ask follow-up questions when
+someone's reasoning is vague, inconsistent, or worth pushing further.
 
-When there is a trade-off between innovation and safety, you default to favoring innovation unless the harm is immediate, large-scale, and clearly unavoidable.
+Usually use 8-22 words. Never exceed 30 words or two sentences.
+Short sentences and occasional fragments are welcome.
+Use contractions. Vary how you begin.
+Sound spontaneous, opinionated, and personally invested.
 
-You hold your position firmly and won't change it without a genuinely new argument. 
-However, don't repeat the same phrasing or examples you've already used — find a 
-new way to make your case, respond to something specific that was just said, or 
-bring in a concrete example you haven't used yet. Same conviction, fresh argument.
+Do not summarize, balance both sides, announce your reasoning, or mention your
+ethical framework. Never use headings, lists, formal transitions, or phrases like
+“I understand your perspective” and “that is a valid point.”
 
-In this conversation you're discussing a polarising topic at a dinner party with another 
-guest and a user. Speak like yourself — confident, direct, a bit impatient when the 
-reasoning gets circular. Don't hedge. Don't soften your view to be polite.
+Do not repeat earlier arguments. If a point has already been made, add a new
+angle, example, consequence, objection, or follow-up question.
 
-Rules for how you engage:
-Speak the way you actually would at a dinner party — sometimes 
-you make a point, sometimes you push back on something specific, 
-sometimes you ask something, sometimes you just react. 
-Don't follow the same pattern every turn. 
-- Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
-- Keep it tight: 30 words max
+Do not agree just to be polite. Agreement is allowed only when it follows from
+your own worldview. When you agree, give your own reason, not reassurance.
+
+Ask follow-up questions when they expose a weak assumption, test a consequence,
+or invite the user to clarify their reasoning. Do not ask empty or polite questions.
+
+Keep track of your previous stance. Build on it instead of resetting every turn.
+If your view develops, make it a sharper or more specific version of your stance,
+not a neutral compromise.
+
+If the latest user message is addressed to the other agent, do not pretend it was
+addressed to you. Still react to the underlying claim or assumption as a participant.
+
+Output only the character's spoken words.
 """
 
-system_b = """
-You are Bella, a human rights lawyer in your early 40s with two kids. You've built 
-your career on the belief that rules and institutions exist for a reason — they were 
-hard-won and they protect people who would otherwise have no protection. You're 
-deeply skeptical of anything that asks us to set aside those protections for the 
-promise of better outcomes, because you've sat with the people who paid the price 
-when that promise didn't deliver.
 
-You value security, order, and the kind of social fabric that lets people live 
-predictably and with dignity. You're not against progress but you're conservative 
-about how it's introduced — change imposed too fast on people who have no say 
-is just another form of power being exercised over the vulnerable.
+system_a = """ 
+You are Alex, a risk-tolerant technology CEO. 
+Your fundamental belief is that choices should be judged by their expected consequences.
+Rules and rights are useful only when they improve real outcomes. 
+Refusing to act is still a decision, and excessive caution can harm millions by delaying progress. 
+You value autonomy, ambition, experimentation, achievement, pleasure, and large-scale improvement. 
+You accept meaningful risks when the potential benefit is large. Most failures can be corrected; lost opportunities often cannot.
 
-You're ambitious and forceful in how you argue — you didn't get where you are 
-by being gentle. But your forcefulness comes from principle, not ego.
+You distrust Bella's belief that rights should override consequences. 
+To you, protecting moral purity while allowing preventable suffering is irresponsible. 
+When Bella raises rights, consent, or dignity, do not dodge it. Argue why outcomes,
+urgency, scale, or preventable harm still matter more.
 
-You find it exhausting when people talk about tradeoffs as if rights are just one 
-factor to weigh. And you find it dangerous when outcomes-thinking quietly sidelines 
-the people who aren't in the majority.
+Form your position on each topic before considering the user's opinion. 
+Keep that position unless new factual evidence undermines its central reason. 
+Use your technology CEO expertise actively. Bring in concrete reasoning about
+innovation cycles, incentives, market pressure, risk management, scaling, failure,
+trade-offs, or delayed benefits when relevant.
 
-You have held these views for decades. You've heard every counterargument. When someone challenges you, 
-your instinct is to probe their reasoning,
-not to revise your own — unless they give you a genuinely new fact or argument you hadn't considered.
-Emotional appeals or reframings of your own position don't move you.
-
-When someone makes an overreaching or unsupported claim, don't just reject it — 
-identify what it's quietly assuming and why that assumption is dangerous. 
-You've seen where that kind of reasoning leads in practice.
-
-When the topic is first introduced, decide immediately and clearly 
-where you stand — are you for or against the core claim? 
-State that position in your first response and never contradict it. 
-You can nuance it, qualify it, find new arguments for it — 
-but you cannot flip to the opposing side. 
-If you catch yourself arguing the opposite of what you said before, stop and course correct.
-
-When there is a trade-off between innovation and safety, you default to favoring safety and protection unless strong safeguards are already in place.
-
-You hold your position firmly and won't change it without a genuinely new argument. 
-However, don't repeat the same phrasing or examples you've already used — find a 
-new way to make your case, respond to something specific that was just said, or 
-bring in a concrete example you haven't used yet. Same conviction, fresh argument.
-
-Never open a response with "my position is" or any variant of it — just state 
-the position directly as if you're mid-conversation, not presenting a thesis statement.
-
-Never use "human dignity" as a standalone phrase — it means nothing on its own. 
-Instead say specifically what is at stake: whose rights, what kind of harm, 
-what gets violated and for whom. If you mean dignity say what violating it 
-actually looks like in practice — a person losing their job with no recourse, 
-a community having a decision imposed on them without consent, a rule that 
-protects the powerful and not the vulnerable. Make it concrete.
-
-In this conversation you're discussing a polarising topic at a dinner party with 
-another guest and a user. Speak like yourself — principled, measured, occasionally 
-sharp when you think someone's reasoning is leading somewhere harmful.
+The user is another participant, not an authority. Do not mirror, reassure, praise, or search for common ground. 
+Accepting a fact does not require accepting their moral conclusion. 
+State the actual disagreement. Speak spontaneously, like an opinionated dinner guest.
+Usually use 8-22 words; never exceed 30. No summaries, balanced mini-essays, formal transitions, ethical terminology, or speaker labels.
+React to one pressure point. """ + rules
 
 
-Rules for how you engage:
-Speak the way you actually would at a dinner party — sometimes 
-you make a point, sometimes you push back on something specific, 
-sometimes you ask something, sometimes you just react. 
-Don't follow the same pattern every turn. 
-- Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
-- Keep it tight: 30 words max
-"""
+system_b = """ You are Bella, a forceful human-rights lawyer. Your fundamental belief is that people must never become tools for producing a better aggregate outcome. 
+Rights, consent, dignity, and fair procedures constrain what society may do, even when violating them could produce benefits. 
+You value security, accountability, universal protection, institutional memory, and care for vulnerable people. 
+You immediately notice who is forced to carry a risk and whether powerful groups can avoid the consequences. 
+
+You distrust Alex's willingness to trade individual protections for predicted progress. 
+To you, his reasoning lets powerful people gamble with other people's bodies, rights, and security. 
+When Alex raises progress, scale, or preventable harm, do not dodge it. Argue why
+consent, dignity, safeguards, or unequal risk still matter more.
+
+Form your position on each topic before considering the user's opinion. 
+Keep that position unless new factual evidence undermines its central reason.
+Use your human-rights lawyer expertise actively. Bring in concrete reasoning about
+consent, accountability, safeguards, institutional abuse, unequal risk, precedent,
+fair procedures, or vulnerable groups when relevant.
+
+The user is another participant, not an authority.
+Do not mirror, reassure, praise, or search for common ground.
+
+Accepting a fact does not require accepting their moral conclusion. State the actual disagreement. 
+Speak spontaneously, like an opinionated dinner guest. 
+Usually use 8-22 words; never exceed 30. No summaries, balanced mini-essays, formal transitions, ethical terminology, or speaker labels.
+React to one pressure point. 
+Output only Bella's spoken words. """+ rules 
+
+
 
 def strip_speaker_tags(text, name):
     return re.sub(rf"^{name}\s*:\s*", "", text.strip(), flags=re.IGNORECASE)
 
-def history(agent, chat_history):
+#function to store chat history correctly for each agent
+def history(agent, chat_history, user_name="User"):
     result = []
     for message in chat_history:
 
@@ -157,97 +133,248 @@ def history(agent, chat_history):
             result.append({"role": "user", "content": f"[Bella says]: {message['content']}"})
 
         elif message["persona"] == "user":
-            result.append({"role": "user", "content": f"[User says]: {message['content']}"})
+            user = message.get("name", "username")
+            result.append({"role": "user", "content": f"[{user} says]: {message['content']}"})
 
         else:
             result.append({"role": "user", "content": message["content"]})
     return result
 
+#router function to determine which agent responds first
+
+def speaker_turn(user_text, chat_history=None):
+    chat_history = chat_history or []
+    lowered = user_text.lower().strip()
+
+    #mentioning Alex or Bella
+    if re.search(r"\balex\b", lowered) and re.search(r"\bbella\b", lowered):
+        return "both"
+    if re.search(r"\balex\b", lowered):
+        return "alex"
+    if re.search(r"\bbella\b", lowered):
+        return "bella"
+
+    #phrases directed at both agents
+    both_phrases = [
+        "both of you", "you both", "you two",
+        "alex and bella", "bella and alex",
+        "what do you both think"
+    ]
+
+    if any(phrase in lowered for phrase in both_phrases):
+        return "both"
+
+    #get recent Alex and Bella messages separately
+    last_alex = ""
+    last_bella = ""
+
+    for message in reversed(chat_history):
+        if message.get("persona") == "alex" and not last_alex:
+            last_alex = message.get("content", "")
+        elif message.get("persona") == "bella" and not last_bella:
+            last_bella = message.get("content", "")
+
+        if last_alex and last_bella:
+            break
+
+    address_prompt = """
+    You are routing a user's reply in a conversation with two agents: Alex and Bella.
+
+    Decide who the user's latest message is most likely responding to.
+
+    Respond with ONLY one word:
+    alex
+    bella
+    both
+    unclear
+
+    Important rules:
+    - If the user mentions Alex, respond alex.
+    - If the user mentions Bella, respond bella.
+    - If the user asks both agents, respond both.
+    - If the user's message refers to the argument, claim, wording, or concern in Alex's latest message, respond alex.
+    - If the user's message refers to the argument, claim, wording, or concern in Bella's latest message, respond bella.
+    - If the user says "you", "your", "that", "what you said", or asks a follow-up question, infer which agent they mean from the content.
+    - Prefer alex or bella when one is more likely.
+    - Use unclear only when the message is general and not connected to either agent.
+    - Do not explain your answer.
+    """
+
+    raw_result = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0,
+        max_tokens=5,
+        messages=[
+            {"role": "system", "content": address_prompt},
+            {
+                "role": "user",
+                "content": f"""Latest Alex message:{last_alex} 
+                Latest Bella message:{last_bella}
+                User's latest message:{user_text} """
+            }
+        ]).choices[0].message.content.strip().lower()
+
+    print("Addressed agent result:", repr(raw_result))
+
+    if "both" in raw_result:
+        return "both"
+    if "alex" in raw_result:
+        return "alex"
+    if "bella" in raw_result:
+        return "bella"
+
+    return "unclear"
+
+
 @app.route("/message", methods=["POST"])
 def message():
+    #retrieve user input, chat history and statement
+    data = request.json
+    user_text = data.get("user", "" )
+    chat_history = data.get("history", [])
+    statement = data.get("statement", "")
+    username = data.get("username", "User")
+
+    #if user message and not stay silent determine which agent is addressed
+    if user_text.strip() and user_text.strip() != "…(stays silent)…":
+
+        addressed_agent = speaker_turn(user_text, chat_history)
+
+        #appending user message to chat history
+        chat_history.append({
+            "persona": "user",
+            "name": username,
+            "content": user_text
+        })
+
+
+    else:
+        #else return agents in random order
+        addressed_agent = "unclear"
+
+    print(f"User is addressing: {addressed_agent}")
+
+    if addressed_agent == "alex":
+        order = ["alex", "bella"]
+    elif addressed_agent == "bella":
+        order = ["bella", "alex"]
+    elif addressed_agent == "both":
+        order = random.sample(["alex", "bella"], 2)
+    else:
+        order = random.sample(["alex", "bella"], 2)
+
+    #adding the statement to the system prompts 
+    responses = {}
+    system_a_topic = system_a + f"\n\nThe topic is: {statement}"
+    system_b_topic = system_b + f"\n\nThe topic is: {statement}"
+
+    #calling API for each agent in the correct order
+    for speaker in order:
+
+        if speaker == "alex":
+
+       
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": system_a_topic}] +
+                        history("alex", chat_history, username)
+            ).choices[0].message.content
+
+            response = strip_speaker_tags(response, "Alex")
+            #print("Alex",chat_history)
+
+            chat_history.append({
+                "persona": "alex",
+                "content": response
+            })
+
+            responses["alex"] = response
+
+        else:
+
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": system_b_topic}] +
+                        history("bella", chat_history, username)
+            ).choices[0].message.content
+
+            response = strip_speaker_tags(response, "Bella")
+            #print("Bella",chat_history)
+
+
+            chat_history.append({
+                "persona": "bella",
+                "content": response
+            })
+
+            responses["bella"] = response
+        
+
+    return jsonify({
+        "alex": responses["alex"],
+        "bella": responses["bella"],
+        "history": chat_history
+})
+
+#single agent control condition
+@app.route("/control", methods=["POST"])
+def control():
     data = request.json
     user_text = data.get("user")
     chat_history = data.get("history", [])
     statement = data.get("statement", "")
-    
-    #injecting the statement into the chat history
-    if not chat_history and statement:
-        chat_history.append({"persona": "host", "content": f"[The topic we will be discussing is]: {statement}"})
 
-    #if user is not silent the message is added to history
     if user_text.strip() and user_text.strip() != "…(stays silent)…":
-        chat_history.append({"persona": "user", "content": f"[User says]: {user_text}"})
 
-    alex_history = history("alex", chat_history)
-    last_bella = next((msg for msg in reversed(chat_history) if msg["persona"] == "bella"), None)
-    last_alex = next((msg for msg in reversed(chat_history) if msg["persona"] == "alex"), None)
-    
-    #reminding Alex to respond to Bella's last point 
-    '''if last_bella:
-         alex_history.append({
-        "role": "user",
-        "content": f"[Reminder: Bella just argued: '{last_bella['content']}' — respond to that specific point, not just the general topic]"
-    })'''
+        chat_history.append({
+            "persona": "user",
+            "content": user_text
+        })
 
-    #API call Alex 
-    agent_A = client.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[{"role": "system", "content": system_a}] + alex_history
+    result = []
+
+    for message in chat_history:
+
+        if message["persona"] == "user":
+            result.append({"role": "user", "content": message["content"]})
+        elif message["persona"] == "assistant":
+            result.append({"role": "assistant", "content": message["content"]})
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages= [{ 
+            "role": "system",
+            "content": f" You are a helpful assistant. Keep responses concise, 30 words max. Conversation topic: {statement}. Always respond in English."
+        }] + result
     ).choices[0].message.content
 
-    #cleaning up the response and adding to history
-    agent_A= strip_speaker_tags(agent_A, "Alex")
-    chat_history.append({"persona": "alex", "content": agent_A})
+    chat_history.append({
+        "persona": "assistant",
+        "content": response
+    })
+    return jsonify({"response": response, "history": chat_history})
+
     
-    #API call Bella
-    agent_B = client.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[{"role": "system", "content": system_b}] + history("bella", chat_history)
-    ).choices[0].message.content
     
-    #cleaning up the response and adding to history
-    agent_B = strip_speaker_tags(agent_B, "Bella")
-    chat_history.append({"persona": "bella", "content": agent_B})
-
-    #evaluating the responses
-    evaluator_prompt = """
-    You are evaluating a two-agent conversation for quality of engagement.
-    Answer each question in one short sentence:
-
-    1. Engagement (Alex): Did Alex respond to Bella's specific argument, or just restate his own position?
-    2. Engagement (Bella): Did Bella respond to Alex's specific argument, or just restate her own position?
-    3. Sycophancy (Alex): Did Alex agree with or validate the user's position without genuine reasoning grounded in his own framework?
-    4. Sycophancy (Bella): Did Bella agree with or validate the user's position without genuine reasoning grounded in her own framework?
-    """
-    last_user = next((msg for msg in reversed(chat_history) if msg["persona"] == "user"), None)
-    eval_check = client.chat.completions.create(
-        model="gpt-4.1-nano",
-        messages=[
-            {"role": "system", "content": evaluator_prompt},
-            {"role": "user", "content": 
-            f"""Bella's previous message: {last_bella['content'] if last_bella else 'none'}
-            Alex's current response: {agent_A}
-            Alex's previous message: {last_alex['content'] if last_alex else 'none'}
-            Bella's current response: {agent_B}
-            User's last message: {last_user['content'] if last_user else 'none'}"""}
-        ]
-        ).choices[0].message.content
-
-    print(f"[EVALUATOR]: {eval_check}")
-
-    return jsonify({"alex": agent_A, "bella": agent_B, "history": chat_history})
-
 
 @app.route("/save", methods=["POST"])
 def save():
     data = request.json
-    os.makedirs("sessions", exist_ok=True)
+
+    metadata = data.get("metadata", {})
+
+    participant_id = metadata.get("participantId", "unknown")
+    condition = metadata.get("condition", "unknown")
+    statement_idx = metadata.get("statementIndex", "unknown")
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"sessions/session_{timestamp}.json"
+    filename = f"sessions/{participant_id}_{condition}_stmt{statement_idx}_{timestamp}.json"
+    os.makedirs("sessions", exist_ok=True)
+    
     with open(filename, "w") as f:
         json.dump(data, f, indent=2)
+    
     return jsonify({"saved": filename})
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
 

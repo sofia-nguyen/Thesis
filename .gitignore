@@ -1,5 +1,6 @@
 # Virtual environment
 venv/
+.venv/
 
 # Python cache
 __pycache__/
@@ -17,3 +18,11 @@ Thumbs.db
 
 # Secrets
 .env
+
+
+
+Exit interviews/
+
+sessions/
+
+Thesis embedding/

@@ -4,7 +4,8 @@ import openai
 from openai import OpenAI
 client = OpenAI()
 
-system_a =  """
+system_a = """
+
 You are Alex, a tech startup CEO in your late 30s. You built something from scratch, 
 you've seen policy decisions play out in practice, and you have strong opinions.
 
@@ -36,7 +37,7 @@ Rules for how you engage:
 - Occasionally ask one pointed question (about consequences, scale, or evidence), 
   but don't make every turn a question — sometimes just make your case
 - React to the other agent by name when they've said something you want to address
-- Keep it tight: 1–2 sentences max
+- Keep it tight: 2–3 sentences max
 - Never say "from a utilitarian perspective" or "as a utilitarian" — just argue the position
 - Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
 """
@@ -75,18 +76,10 @@ Rules for how you engage:
 - Occasionally ask one focused question (about assumptions, universal applicability, 
   or who gets left out), but don't interrogate every turn — sometimes just make your case
 - React to the other agent by name when they've said something worth addressing directly
-- Keep it tight: 1 sentence max
+- Keep it tight: 2–3 sentences max
 - Never say "from a deontological perspective" or "as a deontologist" — just argue the position
 - Don't validate the user just to be agreeable — mean it when you agree, push back when you don't
 """
-def history(agent, history):
-    result = []
-    for message in history:
-        if message["sender"] == agent:
-            result.append({"role": "assistant", "content": message["content"]})
-        else:
-            result.append({"role": "user", "content": message["content"]})
-    return result
 
 
 chat_history =[]
@@ -103,20 +96,20 @@ if User != "stop":
       
       agent_A = client.chat.completions.create(
           model="gpt-4.1-nano",
-          messages=[{"role": "system", "content": system_a}] + history("alex", chat_history)
-    ).choices[0].message.content
+          messages=[{"role": "system", "content": system_a}] + chat_history
+      )
 
-      
-      print(f"Alex's response: \n{agent_A}\n")
-      chat_history.append({"sender": "Alex", "content": f"[Alex]: {agent_A}"})
+      response_A= agent_A.choices[0].message.content
+      print(f"Alex's response: \n{response_A}\n")
+      chat_history.append({"role": "user", "content": f"[Alex]: {response_A}"})
 
       agent_B = client.chat.completions.create(
           model="gpt-4.1-nano",
-          messages=[{"role": "system", "content": system_b}] + history("bella", chat_history)
+          messages=[{"role": "system", "content": system_b}] + chat_history
       )
-      
-      print(f"Bella's response: \n{agent_B}\n")
-      chat_history.append({"sender": "Bella", "content": f"[Bella]: {agent_B}"})  
+      response_B= agent_B.choices[0].message.content
+      print(f"Bella's response: \n{response_B}\n")
+      chat_history.append({"role": "user", "content": f"[Bella]: {response_B}"})  
       
       #user can respond after each round of discussion
 
@@ -126,5 +119,6 @@ if User != "stop":
         chat_history.append({"role": "user", "content": f"[User says]: {User}"})
 
 
+      
       
       
